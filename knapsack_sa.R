@@ -1,12 +1,13 @@
 library(reshape)
 
-readData <- function() {
-  df <- readLines('C:\\Users\\Miko\\Desktop\\Dropbox\\ormno-proj\\knapsack\\data2.txt')
+readData <- function(dataFile) {
+  df <- readLines(dataFile)
   v1 <- unlist(strsplit(df[1], split=" "))
-  lim <- as.numeric(v1[1])
   N <- as.numeric(v1[2])
-  conNum <- ceiling(lim / 10)
-  objNum <- ceiling(N / 10)
+  lim <- as.numeric(v1[3])
+  optSol <- as.numeric(v1[4])
+  conNum <- ceiling(lim / 7)
+  objNum <- ceiling(N / 7)
   
   s <- c()
   for(i in 2:(objNum +1))
@@ -17,33 +18,34 @@ readData <- function() {
   
   profits <- s
   
-  s <- c()
-  for(i in (objNum+2):(objNum+conNum+1))
-    s <- c(s,df[i])
-  
-  s <- as.numeric(unlist(strsplit(s, split=" ")))
-  s <- s[!is.na(s)]
-  constraints <- s
-  
-  
   costs <- data.frame(c(1:N))
   for(i in 1:lim) {
-    row <- objNum+conNum+2+(i-1)*objNum
+    row <- objNum+2+(i-1)*objNum
     s <- c()
     for(j in row:(row+objNum-1))
       s <- c(s,df[j])
-    
+
     s <- as.numeric(unlist(strsplit(s, split=" ")))
     s <- s[!is.na(s)]
     costs[,i] <- s
   }
-  costs <- t(costs)
   
+  s <- c()
+  for(i in (objNum+(objNum * lim)+2):(objNum+(objNum * lim)+ conNum + 1))
+    s <- c(s,df[i])
+
+  s <- as.numeric(unlist(strsplit(s, split=" ")))
+  s <- s[!is.na(s)]
+  constraints <- s
+
+  costs <- t(costs)
+
   data <- list()
   data$profits <- profits
   data$constraints <- constraints
   data$costs <- costs
   data$N <- N
+  data$optSol <- optSol
   return(data)
 }
 
@@ -91,39 +93,58 @@ countProfit <- function (sol, profits) {
   return(profit)
 }
 
-sa <- function() {
+sa <- function(dataFile) {
   temp <- 1000
-  tempLimit <- 0.01
-  alfa <- 0.95
+  tempLimit <- 0.0001
+  alfa <- 0.9
+  M <- 14
   
-  data <- readData()
+  data <- readData(dataFile)
+  
+  startTime <- Sys.time()
+  
   N <- data$N
   profits <- data$profits
   constraints <- data$constraints
   costs <- data$costs
-  currSol <- initialize(N, costs, constraints)
+  currSol <- c() #initialize(N, costs, constraints)
   
   while(temp > tempLimit) {
-    item <- getNewItem(currSol, N)
-    newSol <- c(currSol, item)
-    
-    while(!isFeasible(newSol, costs, constraints)) {
-      len <- length(newSol) - 1
-      i <- sample(1:len, 1)
-      newSol <- newSol[-i]
-    }
-    
-    diff <- countProfit(newSol, profits) - countProfit(currSol, profits)
-    
-    if (diff > 0 || runif(1, 0, 1) < exp(diff / temp))
-      currSol <- newSol
-    
+    m <- 0
+    while(m < M) {
+      item <- getNewItem(currSol, N)
+      newSol <- c(currSol, item)
+      
+      while(!isFeasible(newSol, costs, constraints)) {
+        len <- length(newSol) - 1
+        i <- sample(1:len, 1)
+        newSol <- newSol[-i]
+      }
+      
+      diff <- countProfit(newSol, profits) - countProfit(currSol, profits)
+      
+      if (diff > 0 || runif(1, 0, 1) < exp(diff / temp))
+        currSol <- newSol
+      
+      m <- m + 1
+    }  
     temp <- temp * alfa
   }
-  print(currSol)
-  print(countProfit(currSol, profits))
+  
+  endTime <- Sys.time()
+  
+  output <- c()
+  output <- c(output, basename(dataFile))
+  output <- c(output, endTime - startTime)
+  output <- c(output, countProfit(currSol, profits))
+  output <- c(output, data$optSol)
+  write(output, file="C:\\Users\\Miko\\Desktop\\Dropbox\\ormno-proj\\hard_in\\sa_results.csv", append = TRUE, sep = "\t", ncolumns = 4)
 }
 
+analyze <- function() {
+  dataFiles <- list.files("C:\\Users\\Miko\\Desktop\\Dropbox\\ormno-proj\\hard_in\\formath1\\", pattern="*.dat", full.names=TRUE)
+  lapply(dataFiles, sa)
+}
 
+analyze()
 
-sa()
